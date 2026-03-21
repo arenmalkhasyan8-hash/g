@@ -1,109 +1,160 @@
+import pygame
+import sys
 import random
+import copy
 
-SIZE = 4
+pygame.init()
 
-def new_grid():
-    return [[0]*SIZE for _ in range(SIZE)]
+WIDTH = 540
+WIN = pygame.display.set_mode((WIDTH, WIDTH))
+pygame.display.set_caption("Sudoku Random")
 
-def add_number(grid):
-    empty = [(i, j) for i in range(SIZE) for j in range(SIZE) if grid[i][j] == 0]
-    if empty:
-        i, j = random.choice(empty)
-        grid[i][j] = 2 if random.random() < 0.9 else 4
+WHITE = (255,255,255)
+BLACK = (0,0,0)
+BLUE = (0,0,255)
+RED = (255,120,120)
 
-def print_grid(grid):
-    print("\n" + "-"*25)
-    for row in grid:
-        for num in row:
-            if num == 0:
-                print(" . ", end="")
-            else:
-                print(f"{num:4}", end="")
-        print()
-    print("-"*25)
+font = pygame.font.SysFont(None, 45)
+menu_font = pygame.font.SysFont(None, 60)
 
-def compress(row):
-    new = [i for i in row if i != 0]
-    new += [0] * (SIZE - len(new))
-    return new
+# ---- Լուծում (մշտական ամբողջական sudoku) ----
+solution = [
+    [5,3,4,6,7,8,9,1,2],
+    [6,7,2,1,9,5,3,4,8],
+    [1,9,8,3,4,2,5,6,7],
+    [8,5,9,7,6,1,4,2,3],
+    [4,2,6,8,5,3,7,9,1],
+    [7,1,3,9,2,4,8,5,6],
+    [9,6,1,5,3,7,2,8,4],
+    [2,8,7,4,1,9,6,3,5],
+    [3,4,5,2,8,6,1,7,9]
+]
 
-def merge(row):
-    for i in range(SIZE-1):
-        if row[i] == row[i+1] and row[i] != 0:
-            row[i] *= 2
-            row[i+1] = 0
-    return row
+board = []
+start_board = []
+selected = None
+game_state = "menu"
 
-def move_left(grid):
-    changed = False
-    new_grid = []
-    for row in grid:
-        c = compress(row)
-        m = merge(c)
-        c2 = compress(m)
-        if c2 != row:
-            changed = True
-        new_grid.append(c2)
-    return new_grid, changed
+# ---- Ռանդոմ պազլ ստեղծել ----
+def generate_puzzle(level):
+    puzzle = copy.deepcopy(solution)
 
-def reverse(grid):
-    return [row[::-1] for row in grid]
+    if level == 1:
+        remove_count = 35   # հեշտ
+    else:
+        remove_count = 50   # դժվար
 
-def transpose(grid):
-    return [list(row) for row in zip(*grid)]
+    removed = 0
+    while removed < remove_count:
+        row = random.randint(0,8)
+        col = random.randint(0,8)
+        if puzzle[row][col] != 0:
+            puzzle[row][col] = 0
+            removed += 1
 
-def move_right(grid):
-    rev = reverse(grid)
-    new, changed = move_left(rev)
-    return reverse(new), changed
+    return puzzle
 
-def move_up(grid):
-    t = transpose(grid)
-    new, changed = move_left(t)
-    return transpose(new), changed
+# ---- Ստուգում ----
+def is_valid(num, row, col):
+    for i in range(9):
+        if board[row][i] == num and i != col:
+            return False
 
-def move_down(grid):
-    t = transpose(grid)
-    new, changed = move_right(t)
-    return transpose(new), changed
+    for i in range(9):
+        if board[i][col] == num and i != row:
+            return False
 
-def game_over(grid):
-    for i in range(SIZE):
-        for j in range(SIZE):
-            if grid[i][j] == 0:
+    box_x = col // 3
+    box_y = row // 3
+
+    for i in range(box_y*3, box_y*3+3):
+        for j in range(box_x*3, box_x*3+3):
+            if board[i][j] == num and (i,j) != (row,col):
                 return False
-            if i < SIZE-1 and grid[i][j] == grid[i+1][j]:
-                return False
-            if j < SIZE-1 and grid[i][j] == grid[i][j+1]:
-                return False
+
     return True
 
-grid = new_grid()
-add_number(grid)
-add_number(grid)
+# ---- Նկարել ----
+def draw_menu():
+    WIN.fill(WHITE)
+    t1 = menu_font.render("Choose Level", True, BLACK)
+    t2 = font.render("Press 1 - Level 1", True, BLACK)
+    t3 = font.render("Press 2 - Level 2", True, BLACK)
 
-while True:
-    print_grid(grid)
-    move = input("Move (W=up, A=right, S=left, X=down, Q=quit): ").lower()
+    WIN.blit(t1, (WIDTH//2 - 150, 150))
+    WIN.blit(t2, (WIDTH//2 - 130, 260))
+    WIN.blit(t3, (WIDTH//2 - 130, 320))
+    pygame.display.update()
 
-    if move == "q":
-        break
-    elif move == "s":     # ձախ
-        grid, changed = move_left(grid)
-    elif move == "a":     # աջ
-        grid, changed = move_right(grid)
-    elif move == "w":     # վերև
-        grid, changed = move_up(grid)
-    elif move == "x":     # ներքև
-        grid, changed = move_down(grid)
+def draw_game():
+    WIN.fill(WHITE)
+    gap = WIDTH // 9
+
+    for row in range(9):
+        for col in range(9):
+
+            value = board[row][col]
+
+            if value != 0:
+
+                if not is_valid(value, row, col):
+                    pygame.draw.rect(WIN, RED, (col*gap, row*gap, gap, gap))
+
+                text = font.render(str(value), True, BLACK)
+                WIN.blit(text, (col*gap + 20, row*gap + 15))
+
+    for i in range(10):
+        thick = 4 if i % 3 == 0 else 1
+        pygame.draw.line(WIN, BLACK, (0, i*gap), (WIDTH, i*gap), thick)
+        pygame.draw.line(WIN, BLACK, (i*gap, 0), (i*gap, WIDTH), thick)
+
+    if selected:
+        row, col = selected
+        pygame.draw.rect(WIN, BLUE, (col*gap, row*gap, gap, gap), 3)
+
+    pygame.display.update()
+
+# ---- Game Loop ----
+running = True
+while running:
+
+    if game_state == "menu":
+        draw_menu()
     else:
-        continue
+        draw_game()
 
-    if changed:
-        add_number(grid)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
 
-    if game_over(grid):
-        print_grid(grid)
-        print("GAME OVER!")
-        break
+        if game_state == "menu":
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_1:
+                    start_board = generate_puzzle(1)
+                if event.key == pygame.K_2:
+                    start_board = generate_puzzle(2)
 
+                if event.key in [pygame.K_1, pygame.K_2]:
+                    board = copy.deepcopy(start_board)
+                    game_state = "game"
+
+        elif game_state == "game":
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = pygame.mouse.get_pos()
+                gap = WIDTH // 9
+                selected = (y // gap, x // gap)
+
+            if event.type == pygame.KEYDOWN:
+                if selected:
+                    row, col = selected
+
+                    if start_board[row][col] == 0:
+                        if event.unicode.isdigit():
+                            num = int(event.unicode)
+                            if 1 <= num <= 9:
+                                board[row][col] = num
+
+                        if event.key == pygame.K_BACKSPACE:
+                            board[row][col] = 0S
