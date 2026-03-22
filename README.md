@@ -1,160 +1,261 @@
 import pygame
-import sys
 import random
-import copy
+import sys
 
 pygame.init()
 
-WIDTH = 540
-WIN = pygame.display.set_mode((WIDTH, WIDTH))
-pygame.display.set_caption("Sudoku Random")
+WIDTH, HEIGHT = 1100, 750
+WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("GAME CENTER CLICK")
+
+FONT = pygame.font.SysFont("Arial", 40)
 
 WHITE = (255,255,255)
 BLACK = (0,0,0)
-BLUE = (0,0,255)
-RED = (255,120,120)
+GREEN = (0,200,0)
+BLUE = (0,0,200)
+RED = (200,0,0)
 
-font = pygame.font.SysFont(None, 45)
-menu_font = pygame.font.SysFont(None, 60)
+# -------- BUTTON CLASS --------
+class Button:
+    def __init__(self, text, x, y, w, h):
+        self.text = text
+        self.rect = pygame.Rect(x, y, w, h)
 
-# ---- Լուծում (մշտական ամբողջական sudoku) ----
-solution = [
-    [5,3,4,6,7,8,9,1,2],
-    [6,7,2,1,9,5,3,4,8],
-    [1,9,8,3,4,2,5,6,7],
-    [8,5,9,7,6,1,4,2,3],
-    [4,2,6,8,5,3,7,9,1],
-    [7,1,3,9,2,4,8,5,6],
-    [9,6,1,5,3,7,2,8,4],
-    [2,8,7,4,1,9,6,3,5],
-    [3,4,5,2,8,6,1,7,9]
-]
+    def draw(self):
+        pygame.draw.rect(WIN, GREEN, self.rect)
+        label = FONT.render(self.text, True, BLACK)
+        WIN.blit(label, (self.rect.x+20, self.rect.y+10))
 
-board = []
-start_board = []
-selected = None
-game_state = "menu"
+    def is_clicked(self, pos):
+        return self.rect.collidepoint(pos)
 
-# ---- Ռանդոմ պազլ ստեղծել ----
-def generate_puzzle(level):
-    puzzle = copy.deepcopy(solution)
+# -------- MENU --------
+def menu():
+    buttons = [
+        Button("DODGE", 400, 150, 300, 60),
+        Button("MEMORY", 400, 230, 300, 60),
+        Button("BRICKS", 400, 310, 300, 60),
+        Button("MAZE", 400, 390, 300, 60),
+        Button("SNAKE", 400, 470, 300, 60),
+    ]
 
-    if level == 1:
-        remove_count = 35   # հեշտ
-    else:
-        remove_count = 50   # դժվար
+    while True:
+        WIN.fill(BLACK)
 
-    removed = 0
-    while removed < remove_count:
-        row = random.randint(0,8)
-        col = random.randint(0,8)
-        if puzzle[row][col] != 0:
-            puzzle[row][col] = 0
-            removed += 1
+        for b in buttons:
+            b.draw()
 
-    return puzzle
+        pygame.display.update()
 
-# ---- Ստուգում ----
-def is_valid(num, row, col):
-    for i in range(9):
-        if board[row][i] == num and i != col:
-            return False
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
 
-    for i in range(9):
-        if board[i][col] == num and i != row:
-            return False
+            if e.type == pygame.MOUSEBUTTONDOWN:
+                pos = pygame.mouse.get_pos()
 
-    box_x = col // 3
-    box_y = row // 3
+                if buttons[0].is_clicked(pos): dodge()
+                if buttons[1].is_clicked(pos): memory()
+                if buttons[2].is_clicked(pos): bricks()
+                if buttons[3].is_clicked(pos): maze()
+                if buttons[4].is_clicked(pos): snake()
 
-    for i in range(box_y*3, box_y*3+3):
-        for j in range(box_x*3, box_x*3+3):
-            if board[i][j] == num and (i,j) != (row,col):
-                return False
+# -------- DODGE --------
+def dodge():
+    player = pygame.Rect(500, 650, 50, 50)
+    enemies = []
+    clock = pygame.time.Clock()
 
-    return True
+    while True:
+        clock.tick(60)
+        WIN.fill(BLACK)
 
-# ---- Նկարել ----
-def draw_menu():
-    WIN.fill(WHITE)
-    t1 = menu_font.render("Choose Level", True, BLACK)
-    t2 = font.render("Press 1 - Level 1", True, BLACK)
-    t3 = font.render("Press 2 - Level 2", True, BLACK)
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
 
-    WIN.blit(t1, (WIDTH//2 - 150, 150))
-    WIN.blit(t2, (WIDTH//2 - 130, 260))
-    WIN.blit(t3, (WIDTH//2 - 130, 320))
-    pygame.display.update()
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]: player.x -= 7
+        if keys[pygame.K_RIGHT]: player.x += 7
 
-def draw_game():
-    WIN.fill(WHITE)
-    gap = WIDTH // 9
+        if random.randint(1,25) == 1:
+            enemies.append(pygame.Rect(random.randint(0, WIDTH-50), 0, 50, 50))
 
-    for row in range(9):
-        for col in range(9):
+        for en in enemies:
+            en.y += 6
+            pygame.draw.rect(WIN, RED, en)
+            if player.colliderect(en):
+                return
 
-            value = board[row][col]
+        pygame.draw.rect(WIN, BLUE, player)
+        pygame.display.update()
 
-            if value != 0:
+# -------- MEMORY --------
+def memory():
+    size = 4
+    values = list(range(1,9))*2
+    random.shuffle(values)
 
-                if not is_valid(value, row, col):
-                    pygame.draw.rect(WIN, RED, (col*gap, row*gap, gap, gap))
+    grid = [[values.pop() for _ in range(size)] for _ in range(size)]
+    revealed = [[False]*size for _ in range(size)]
+    first = None
 
-                text = font.render(str(value), True, BLACK)
-                WIN.blit(text, (col*gap + 20, row*gap + 15))
+    clock = pygame.time.Clock()
 
-    for i in range(10):
-        thick = 4 if i % 3 == 0 else 1
-        pygame.draw.line(WIN, BLACK, (0, i*gap), (WIDTH, i*gap), thick)
-        pygame.draw.line(WIN, BLACK, (i*gap, 0), (i*gap, WIDTH), thick)
+    while True:
+        clock.tick(60)
+        WIN.fill(WHITE)
 
-    if selected:
-        row, col = selected
-        pygame.draw.rect(WIN, BLUE, (col*gap, row*gap, gap, gap), 3)
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
 
-    pygame.display.update()
+            if e.type == pygame.MOUSEBUTTONDOWN:
+                x,y = pygame.mouse.get_pos()
+                i,j = y//150, x//150
 
-# ---- Game Loop ----
-running = True
-while running:
+                if i < size and j < size:
+                    if not revealed[i][j]:
+                        revealed[i][j] = True
+                        if first is None:
+                            first = (i,j)
+                        else:
+                            if grid[i][j] != grid[first[0]][first[1]]:
+                                pygame.time.delay(500)
+                                revealed[i][j] = False
+                                revealed[first[0]][first[1]] = False
+                            first = None
 
-    if game_state == "menu":
-        draw_menu()
-    else:
-        draw_game()
+        for i in range(size):
+            for j in range(size):
+                rect = pygame.Rect(j*150, i*150, 140, 140)
+                pygame.draw.rect(WIN, BLUE if revealed[i][j] else BLACK, rect)
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
+                if revealed[i][j]:
+                    text = FONT.render(str(grid[i][j]), True, WHITE)
+                    WIN.blit(text, (j*150+50, i*150+50))
 
-        if game_state == "menu":
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_1:
-                    start_board = generate_puzzle(1)
-                if event.key == pygame.K_2:
-                    start_board = generate_puzzle(2)
+        pygame.display.update()
 
-                if event.key in [pygame.K_1, pygame.K_2]:
-                    board = copy.deepcopy(start_board)
-                    game_state = "game"
+# -------- BRICKS --------
+def bricks():
+    paddle = pygame.Rect(500, 700, 120, 20)
+    ball = pygame.Rect(550, 400, 20, 20)
+    dx, dy = 5, -5
 
-        elif game_state == "game":
+    bricks = [pygame.Rect(j*100+10, i*40+10, 80, 30) for i in range(5) for j in range(10)]
+    clock = pygame.time.Clock()
 
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                x, y = pygame.mouse.get_pos()
-                gap = WIDTH // 9
-                selected = (y // gap, x // gap)
+    while True:
+        clock.tick(60)
+        WIN.fill(BLACK)
 
-            if event.type == pygame.KEYDOWN:
-                if selected:
-                    row, col = selected
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
 
-                    if start_board[row][col] == 0:
-                        if event.unicode.isdigit():
-                            num = int(event.unicode)
-                            if 1 <= num <= 9:
-                                board[row][col] = num
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]: paddle.x -= 8
+        if keys[pygame.K_RIGHT]: paddle.x += 8
 
-                        if event.key == pygame.K_BACKSPACE:
-                            board[row][col] = 0S
+        ball.x += dx
+        ball.y += dy
+
+        if ball.left <= 0 or ball.right >= WIDTH: dx *= -1
+        if ball.top <= 0: dy *= -1
+        if ball.colliderect(paddle): dy *= -1
+
+        for b in bricks[:]:
+            if ball.colliderect(b):
+                bricks.remove(b)
+                dy *= -1
+
+        if ball.bottom > HEIGHT:
+            return
+
+        pygame.draw.rect(WIN, GREEN, paddle)
+        pygame.draw.ellipse(WIN, WHITE, ball)
+
+        for b in bricks:
+            pygame.draw.rect(WIN, RED, b)
+
+        pygame.display.update()
+
+# -------- MAZE --------
+def maze():
+    player = pygame.Rect(50, 50, 30, 30)
+    goal = pygame.Rect(1000, 650, 50, 50)
+
+    walls = [pygame.Rect(random.randint(0, WIDTH), random.randint(0, HEIGHT), 120, 20) for _ in range(25)]
+    clock = pygame.time.Clock()
+
+    while True:
+        clock.tick(60)
+        WIN.fill(WHITE)
+
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]: player.x -= 5
+        if keys[pygame.K_RIGHT]: player.x += 5
+        if keys[pygame.K_UP]: player.y -= 5
+        if keys[pygame.K_DOWN]: player.y += 5
+
+        for w in walls:
+            pygame.draw.rect(WIN, BLACK, w)
+            if player.colliderect(w):
+                player.topleft = (50,50)
+
+        pygame.draw.rect(WIN, GREEN, goal)
+
+        if player.colliderect(goal):
+            return
+
+        pygame.draw.rect(WIN, BLUE, player)
+        pygame.display.update()
+
+# -------- SNAKE --------
+def snake():
+    snake = [(200,200)]
+    dx, dy = 20, 0
+    food = (random.randint(0, 50)*20, random.randint(0, 35)*20)
+
+    clock = pygame.time.Clock()
+
+    while True:
+        clock.tick(10)
+        WIN.fill(BLACK)
+
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]: dx,dy = -20,0
+        if keys[pygame.K_RIGHT]: dx,dy = 20,0
+        if keys[pygame.K_UP]: dx,dy = 0,-20
+        if keys[pygame.K_DOWN]: dx,dy = 0,20
+
+        head = (snake[0][0]+dx, snake[0][1]+dy)
+        snake.insert(0, head)
+
+        if head == food:
+            food = (random.randint(0, 50)*20, random.randint(0, 35)*20)
+        else:
+            snake.pop()
+
+        if head[0]<0 or head[0]>WIDTH or head[1]<0 or head[1]>HEIGHT:
+            return
+
+        for s in snake:
+            pygame.draw.rect(WIN, GREEN, (*s,20,20))
+
+        pygame.draw.rect(WIN, RED, (*food,20,20))
+        pygame.display.update()
+
+# -------- RUN --------
+menu()
